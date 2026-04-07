@@ -1,4 +1,4 @@
-import { Order, OrderSide } from './types';
+import type { Order, OrderSide } from './types';
 
 
 export class OrderBook {
@@ -8,7 +8,7 @@ export class OrderBook {
     // We are using a Map here to achieve 0(1) instant lookups 
     // A map lets us jump straight to the exact price.
     private bids: Map<number, Order[]>; //Buyers
-    private bids: Map<number, Order[]>; //Sellers
+    private asks: Map<number, Order[]>; //Sellers
 
     private bestBid: number | null;
     private bestAsk: number | null;
@@ -57,9 +57,9 @@ export class OrderBook {
         // we just deleted the best price, now we must recalculate
 
         if(side === 'BUY' && price === this.bestBid) {
-            this.recalculateBestBid();
+            this.reCalculateBestBid();
         } else if (side === 'SELL' && price === this.bestAsk) {
-            this.recalculateBestAsk();
+            this.reCalculateBestAsk();
         }
 
          }
@@ -84,7 +84,7 @@ export class OrderBook {
             bestAsk: this.bestAsk,
             // Converting maps to standard objects so we can send them over HTTP/websockets safely
             bids: Object.fromEntries(this.bids),
-            ask: Object.fromEntries(this.asks)
+            asks: Object.fromEntries(this.asks)
         };
     }
 
@@ -94,17 +94,17 @@ export class OrderBook {
         if(isBuy) {
         // Buyers want to pay the least, But the engine will prioritize whoever pays the MOST
         if(this.bestBid === null || price > this.bestBid) {
-            this.bestAsk = price;
+            this.bestBid = price; // highest price wins
         }
         } else {
         // Seller want to charge the MOST, but the engine will prioritize whoever charges the LEAST
         if(this.bestAsk === null || price < this.bestAsk) {
-            this.bestAsk = price;
+            this.bestAsk = price;   // lowest price wins
         } 
         }
     }
 
-    private relCalculateBestBid(): void {
+    private reCalculateBestBid(): void {
         if(this.bids.size === 0) {
             this.bestBid = null;
             return;
