@@ -71,4 +71,38 @@ export class MatchingEngine {
 
     }
 
-    
+    public cancelOrder(
+        orderId: string,
+        symbol: string,
+        side: 'BUY' | 'SELL',
+        price: number
+    ): boolean {
+
+        // First check the pending stop orders lsit for this symbol
+        // Stop orders live here not in the order book
+        const stops = this.pendingStopOrders.get(symbol);
+        if (stops) {
+            const stopIndex = this.pendingStopOrders.get(symbol);
+            if(stops) {
+                const stopIndex = stops.findIndex(o => o.id === orderId);
+                if(stopIndex !== -1) {
+                    stops.splice(stopIndex, 1);
+                    return true;
+
+                }
+            }
+            // if not found in pending stops, check the order book itself
+            const book = this.books.get(symbol);
+            if(!book) return false;
+            return book.cancelOrder(orderId, side, price);
+
+        }
+
+        public getOrderBook(symbol: string) {
+            const book = this.books.get(symbol);
+            if(!book) return null;
+            return book.getDepthSnapshot();
+        }
+        
+    }
+
