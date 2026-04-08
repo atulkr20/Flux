@@ -109,7 +109,8 @@ export class OrderBook {
             this.bestBid = null;
             return;
         }
-    // Using a simple for loop here bcz it's highly memory efficient
+
+        // Using a simple for loop here bcz it's highly memory efficient
 
         let maxPrice = 0;
         for(const price of this.bids.keys()) {
@@ -118,6 +119,14 @@ export class OrderBook {
             }
         }
         this.bestBid = maxPrice;
+    }
+
+    public getBidsAt(price: number): Order[] | undefined {
+        return this.bids.get(price);
+    }
+
+    public getAsksAt(price: number): Order[] | undefined {
+        return this.asks.get(price);
     }
 
     private reCalculateBestAsk(): void {
