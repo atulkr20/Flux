@@ -8,6 +8,7 @@ export interface Order {
     side: OrderSide;
     type: OrderType;
     price: number;
+    stopPrice?: number;
     quantity: number;
     filledQty: number;
     status: OrderStatus;
