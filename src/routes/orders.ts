@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import { v4 as uuidv4 } from 'uuid';
 import engine from '../engine/index';
 import type { Order } from "../engine/types";
+import { broadcastDepthupdate } from "../websocket/handler";
 
 const router = Router();
 
@@ -30,6 +31,10 @@ router.post('/', async (req: Request, res: Response) => {
     };
 
     const trades = await engine.placeOrder(order);
+
+    if(trades.length > 0) {
+        broadcastDepthupdate(order.symbol);
+    }
 
     res.status(201).json({
         orderId: order.id,
