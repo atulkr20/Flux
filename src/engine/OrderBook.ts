@@ -112,7 +112,7 @@ export class OrderBook {
 
         // Using a simple for loop here bcz it's highly memory efficient
 
-        let maxPrice = 0;
+        let maxPrice = -Infinity;
         for(const price of this.bids.keys()) {
             if(price > maxPrice) {
                 maxPrice = price;
