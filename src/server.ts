@@ -1,6 +1,7 @@
 import http from 'http';
 import app from './app';
 import { setupWebSocket } from './websocket/handler';
+import 'dotenv/config';
 
 // this fix makes Node js prefer IPv4 when resolving domain names
 // without this the groq api calls will fail with error as it did in NeuralProxy
