@@ -2,10 +2,17 @@ import OpenAI from 'openai';
 
 //Groq is openAI compatible so we just point the  base URL at Groq
 
-const groq = new OpenAI({
-    apiKey: process.env.GROQ_API_KEY,
-    baseURL: 'https://api.groq.com/openai/v1'
-});
+function getGroqClient(): OpenAI {
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) {
+        throw new Error('Missing GROQ_API_KEY environment variable');
+    }
+
+    return new OpenAI({
+        apiKey,
+        baseURL: 'https://api.groq.com/openai/v1'
+    });
+}
 
 // This takes the raw order book snapshot and formats it into somethign readablr that we can send AI as context
 function formatBookForPrompt(book: any):string {
@@ -38,9 +45,11 @@ export async function streamBookSummary(
     onDone: () => void
 ): Promise<void> {
     const formattedBook = formatBookForPrompt(book);
+    const groq = getGroqClient();
+    const model = process.env.GROQ_MODEL || 'llama-3.1-8b-instant';
 
     const stream = await groq.chat.completions.create({
-        model: 'llama3-8b-8192',
+        model,
         stream: true,
         messages: [ 
             {

@@ -1,6 +1,7 @@
 import { WebSocketServer, WebSocket } from "ws";
-import { IncomingMessage, Server } from "http";
+import { Server } from "http";
 import engine from '../engine/index';
+import { streamBookSummary } from "../services/summarizer.service";
 
 // we keep track of which clients are subscribed to which symbol
 // Key: Symbol, value : set of websocket connections watching it 
@@ -15,7 +16,7 @@ export function setupWebSocket(server: Server): void {
         console.log('New Webhook client connected');
 
         // When a message comes in from the client
-        ws.on('message', (data) => {
+        ws.on('message', async (data) => {
             let parsed: any;
 
         // parse the incoming message as JSON, if malformed just ignore it
@@ -41,14 +42,48 @@ export function setupWebSocket(server: Server): void {
         const book = engine.getOrderBook(symbol);
         ws.send(JSON.stringify({ type: 'snapshot', data: book }));
 
-        console.log(`Client subscribed to $symbol`);
+        console.log(`Client subscribed to ${symbol}`);
 
 
         }
-        // Summarize (we'll do later)
+        
+        if(action === 'summarize' && symbol) {
+            const book = engine.getOrderBook(symbol);
+
+            if(!book) {
+                ws.send(JSON.stringify({ type: 'summary_error', message: 'No order book found for this symbol'}));
+                return;
+            }
+
+            console.log(`Streaming AI summary for ${symbol}`);
+            try {
+                // Each chunk from Groq gets sent to this client immediately
+                await streamBookSummary(
+                    book,
+                    (chunk) => {
+                        // only send if client is still connected
+                        if(ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify({ type: 'summary_chunk', text: chunk}));
+
+                        }
+                    },
+                    () => {
+                        if(ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify({ type: 'summary_done'}));
+                        }
+                    }
+                );
+            } catch (error) {
+                console.error('Failed to stream summary', error);
+                if (ws.readyState === WebSocket.OPEN) {
+                    const message = error instanceof Error ? error.message : 'Failed to generate summary';
+                    ws.send(JSON.stringify({ type: 'summary_error', message }));
+                }
+            }
+        }
         });
 
-    // When a client sisconnects, remove them from all subscriber lists
+    // When a client disconnects, remove them from all subscriber lists
     ws.on('close', () => {
         for (const [symbol, clients] of subscribers.entries()) {
             clients.delete(ws);

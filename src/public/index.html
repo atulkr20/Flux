@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flux — Order Matching Engine</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #0f0f0f;
+            color: #e0e0e0;
+            font-family: 'Courier New', monospace;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            padding: 16px 24px;
+            border-bottom: 1px solid #222;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        header h1 {
+            font-size: 18px;
+            color: #fff;
+            letter-spacing: 2px;
+        }
+
+        /* green dot that pulses when connected */
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #444;
+        }
+
+        .status-dot.connected {
+            background: #22c55e;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .main {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* each panel takes up equal width */
+        .panel {
+            flex: 1;
+            padding: 20px;
+            border-right: 1px solid #222;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .panel:last-child {
+            border-right: none;
+        }
+
+        .panel-title {
+            font-size: 11px;
+            letter-spacing: 2px;
+            color: #666;
+            text-transform: uppercase;
+        }
+
+        /* order placement form */
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-group label {
+            font-size: 11px;
+            color: #666;
+            letter-spacing: 1px;
+        }
+
+        .form-group select,
+        .form-group input {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: #e0e0e0;
+            padding: 8px 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            outline: none;
+        }
+
+        .form-group select:focus,
+        .form-group input:focus {
+            border-color: #555;
+        }
+
+        .btn {
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            letter-spacing: 1px;
+            cursor: pointer;
+            border: none;
+            margin-top: 4px;
+        }
+
+        .btn-place {
+            background: #1d4ed8;
+            color: #fff;
+        }
+
+        .btn-place:hover {
+            background: #2563eb;
+        }
+
+        .btn-summarize {
+            background: #1a1a1a;
+            color: #a78bfa;
+            border: 1px solid #4c1d95;
+            width: 100%;
+        }
+
+        .btn-summarize:hover {
+            background: #2d1b69;
+        }
+
+        /* order status message shown after placing */
+        .order-status {
+            font-size: 12px;
+            padding: 8px;
+            background: #1a1a1a;
+            border-left: 3px solid #333;
+            display: none;
+        }
+
+        .order-status.success {
+            border-left-color: #22c55e;
+            color: #22c55e;
+        }
+
+        .order-status.error {
+            border-left-color: #ef4444;
+            color: #ef4444;
+        }
+
+        /* order book table */
+        .book-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        .book-table th {
+            color: #555;
+            text-align: right;
+            padding: 4px 8px;
+            font-weight: normal;
+            letter-spacing: 1px;
+            font-size: 10px;
+        }
+
+        .book-table td {
+            text-align: right;
+            padding: 3px 8px;
+        }
+
+        /* asks are red, bids are green */
+        .ask-row td { color: #ef4444; }
+        .bid-row td { color: #22c55e; }
+
+        .spread-row td {
+            color: #666;
+            font-size: 11px;
+            padding: 6px 8px;
+            text-align: center;
+        }
+
+        /* trades list on the right panel */
+        .trade-item {
+            font-size: 12px;
+            padding: 6px 0;
+            border-bottom: 1px solid #1a1a1a;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .trade-buy { color: #22c55e; }
+        .trade-sell { color: #ef4444; }
+
+        /* AI summary text area */
+        .summary-box {
+            background: #111;
+            border: 1px solid #2d1b69;
+            padding: 12px;
+            font-size: 12px;
+            color: #c4b5fd;
+            line-height: 1.6;
+            min-height: 80px;
+            white-space: pre-wrap;
+            display: none;
+        }
+
+        /* blinking cursor shown while AI is streaming */
+        .cursor {
+            display: inline-block;
+            width: 6px;
+            height: 12px;
+            background: #a78bfa;
+            animation: blink 0.8s infinite;
+            vertical-align: middle;
+            margin-left: 2px;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        .symbol-tabs {
+            display: flex;
+            gap: 8px;
+        }
+
+        .symbol-tab {
+            padding: 4px 12px;
+            font-size: 11px;
+            font-family: 'Courier New', monospace;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: #666;
+            cursor: pointer;
+            letter-spacing: 1px;
+        }
+
+        .symbol-tab.active {
+            border-color: #555;
+            color: #e0e0e0;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="status-dot" id="statusDot"></div>
+    <h1>FLUX</h1>
+    <span style="font-size:11px; color:#444; letter-spacing:1px;">ORDER MATCHING ENGINE</span>
+</header>
+
+<div class="main">
+
+    <!-- LEFT PANEL: Place Order -->
+    <div class="panel">
+        <div class="panel-title">Place Order</div>
+
+        <div class="form-group">
+            <label>Symbol</label>
+            <select id="orderSymbol">
+                <option>BTC-INR</option>
+                <option>ETH-INR</option>
+                <option>RELIANCE</option>
+                <option>TCS</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Side</label>
+            <select id="orderSide">
+                <option value="BUY">BUY</option>
+                <option value="SELL">SELL</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Type</label>
+            <select id="orderType" onchange="togglePriceField()">
+                <option value="LIMIT">LIMIT</option>
+                <option value="MARKET">MARKET</option>
+                <option value="STOP">STOP</option>
+            </select>
+        </div>
+
+        <!-- price field hidden for market orders -->
+        <div class="form-group" id="priceGroup">
+            <label>Price</label>
+            <input type="number" id="orderPrice" placeholder="0.00" />
+        </div>
+
+        <!-- stop price field only shown for stop orders -->
+        <div class="form-group" id="stopPriceGroup" style="display:none">
+            <label>Stop Price</label>
+            <input type="number" id="orderStopPrice" placeholder="0.00" />
+        </div>
+
+        <div class="form-group">
+            <label>Quantity</label>
+            <input type="number" id="orderQty" placeholder="0" />
+        </div>
+
+        <button class="btn btn-place" onclick="placeOrder()">PLACE ORDER</button>
+
+        <div class="order-status" id="orderStatus"></div>
+    </div>
+
+    <!-- MIDDLE PANEL: Live Order Book -->
+    <div class="panel">
+        <div class="panel-title">Order Book</div>
+
+        <div class="symbol-tabs" id="symbolTabs">
+            <div class="symbol-tab active" onclick="switchSymbol('BTC-INR', this)">BTC-INR</div>
+            <div class="symbol-tab" onclick="switchSymbol('ETH-INR', this)">ETH-INR</div>
+            <div class="symbol-tab" onclick="switchSymbol('RELIANCE', this)">RELIANCE</div>
+            <div class="symbol-tab" onclick="switchSymbol('TCS', this)">TCS</div>
+        </div>
+
+        <table class="book-table">
+            <thead>
+                <tr>
+                    <th>PRICE</th>
+                    <th>ORDERS</th>
+                </tr>
+            </thead>
+            <tbody id="bookBody">
+                <tr><td colspan="2" style="text-align:center; color:#444; padding:20px;">No data</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- RIGHT PANEL: Trades + AI Summary -->
+    <div class="panel">
+        <div class="panel-title">Recent Trades</div>
+
+        <div id="tradesList">
+            <div style="font-size:12px; color:#444;">No trades yet</div>
+        </div>
+
+        <div style="margin-top: auto; display: flex; flex-direction: column; gap: 10px;">
+            <div class="panel-title">AI Summary</div>
+            <button class="btn btn-summarize" onclick="requestSummary()">SUMMARIZE MARKET</button>
+            <div class="summary-box" id="summaryBox"></div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // tracks current symbol being watched in the order book panel
+    let currentSymbol = 'BTC-INR';
+    let ws = null;
+    let recentTrades = [];
+
+    // --- WebSocket Setup ---
+
+    function connectWebSocket() {
+        // connect to the same host the page is served from
+        ws = new WebSocket(`ws://${window.location.host}`);
+
+        ws.onopen = () => {
+            document.getElementById('statusDot').classList.add('connected');
+            // subscribe to the default symbol on connect
+            subscribe(currentSymbol);
+        };
+
+        ws.onclose = () => {
+            document.getElementById('statusDot').classList.remove('connected');
+            // try to reconnect after 2 seconds if connection drops
+            setTimeout(connectWebSocket, 2000);
+        };
+
+        ws.onmessage = (event) => {
+            const msg = JSON.parse(event.data);
+
+            if (msg.type === 'snapshot' || msg.type === 'depth_update') {
+                // fresh order book data arrived, re-render the table
+                renderBook(msg.data);
+            }
+
+            if (msg.type === 'summary_chunk') {
+                // a new piece of the AI response arrived, append it
+                appendSummaryChunk(msg.text);
+            }
+
+            if (msg.type === 'summary_done') {
+                // AI is done, remove the blinking cursor
+                removeSummaryCursor();
+            }
+        };
+    }
+
+    function subscribe(symbol) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ action: 'subscribe', symbol }));
+        }
+    }
+
+    function switchSymbol(symbol, tabEl) {
+        currentSymbol = symbol;
+
+        // update active tab styling
+        document.querySelectorAll('.symbol-tab').forEach(t => t.classList.remove('active'));
+        tabEl.classList.add('active');
+
+        subscribe(symbol);
+    }
+
+    // --- Order Book Rendering ---
+
+    function renderBook(book) {
+        if (!book) return;
+
+        const tbody = document.getElementById('bookBody');
+        let html = '';
+
+        // asks go on top in red, sorted highest to lowest so the best ask is closest to the spread
+        const askEntries = Object.entries(book.asks || {})
+            .map(([price, orders]) => ({ price: parseFloat(price), count: orders.length }))
+            .sort((a, b) => b.price - a.price);
+
+        for (const entry of askEntries) {
+            html += `<tr class="ask-row">
+                <td>${entry.price.toLocaleString()}</td>
+                <td>${entry.count}</td>
+            </tr>`;
+        }
+
+        // spread row in the middle
+        const spread = (book.bestAsk && book.bestBid)
+            ? (book.bestAsk - book.bestBid).toFixed(2)
+            : '--';
+
+        html += `<tr class="spread-row">
+            <td colspan="2">spread ${spread}</td>
+        </tr>`;
+
+        // bids go below in green, sorted highest first so best bid is at the top of bids section
+        const bidEntries = Object.entries(book.bids || {})
+            .map(([price, orders]) => ({ price: parseFloat(price), count: orders.length }))
+            .sort((a, b) => b.price - a.price);
+
+        for (const entry of bidEntries) {
+            html += `<tr class="bid-row">
+                <td>${entry.price.toLocaleString()}</td>
+                <td>${entry.count}</td>
+            </tr>`;
+        }
+
+        tbody.innerHTML = html || '<tr><td colspan="2" style="text-align:center; color:#444; padding:20px;">No data</td></tr>';
+    }
+
+    // --- Order Placement ---
+
+    function togglePriceField() {
+        const type = document.getElementById('orderType').value;
+        document.getElementById('priceGroup').style.display = type === 'MARKET' ? 'none' : 'flex';
+        document.getElementById('stopPriceGroup').style.display = type === 'STOP' ? 'flex' : 'none';
+    }
+
+    async function placeOrder() {
+        const symbol = document.getElementById('orderSymbol').value;
+        const side = document.getElementById('orderSide').value;
+        const type = document.getElementById('orderType').value;
+        const price = parseFloat(document.getElementById('orderPrice').value);
+        const stopPrice = parseFloat(document.getElementById('orderStopPrice').value);
+        const quantity = parseFloat(document.getElementById('orderQty').value);
+
+        const body = { symbol, side, type, quantity };
+        if (type !== 'MARKET') body.price = price;
+        if (type === 'STOP') body.stopPrice = stopPrice;
+
+        const statusEl = document.getElementById('orderStatus');
+
+        try {
+            const res = await fetch('/orders', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                showStatus(`Error: ${data.error}`, 'error');
+                return;
+            }
+
+            // if trades happened, add them to the recent trades list
+            if (data.trades && data.trades.length > 0) {
+                data.trades.forEach(t => addTrade(t, side));
+                showStatus(`Matched ${data.trades.length} trade(s)`, 'success');
+            } else {
+                showStatus(`Order placed — ${data.status}`, 'success');
+            }
+
+        } catch (err) {
+            showStatus('Failed to reach server', 'error');
+        }
+    }
+
+    function showStatus(message, type) {
+        const el = document.getElementById('orderStatus');
+        el.textContent = message;
+        el.className = `order-status ${type}`;
+        el.style.display = 'block';
+        // hide after 3 seconds
+        setTimeout(() => { el.style.display = 'none'; }, 3000);
+    }
+
+    // --- Trades List ---
+
+    function addTrade(trade, side) {
+        recentTrades.unshift({ ...trade, side });
+        // only keep last 20 trades
+        if (recentTrades.length > 20) recentTrades.pop();
+        renderTrades();
+    }
+
+    function renderTrades() {
+        const el = document.getElementById('tradesList');
+        if (recentTrades.length === 0) {
+            el.innerHTML = '<div style="font-size:12px; color:#444;">No trades yet</div>';
+            return;
+        }
+
+        el.innerHTML = recentTrades.map(t => `
+            <div class="trade-item">
+                <span class="${t.side === 'BUY' ? 'trade-buy' : 'trade-sell'}">${t.side}</span>
+                <span>${t.price.toLocaleString()}</span>
+                <span style="color:#666">qty ${t.quantity}</span>
+            </div>
+        `).join('');
+    }
+
+    // --- AI Summary ---
+
+    function requestSummary() {
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+        const box = document.getElementById('summaryBox');
+        // clear previous summary and show the box
+        box.style.display = 'block';
+        box.innerHTML = '<span class="cursor"></span>';
+
+        ws.send(JSON.stringify({ action: 'summarize', symbol: currentSymbol }));
+    }
+
+    function appendSummaryChunk(text) {
+        const box = document.getElementById('summaryBox');
+        // remove the cursor, add text, put cursor back at the end
+        const cursor = box.querySelector('.cursor');
+        if (cursor) cursor.remove();
+        box.innerHTML += text;
+        box.innerHTML += '<span class="cursor"></span>';
+    }
+
+    function removeSummaryCursor() {
+        const cursor = document.getElementById('summaryBox').querySelector('.cursor');
+        if (cursor) cursor.remove();
+    }
+
+    // start the WebSocket connection when page loads
+    connectWebSocket();
+</script>
+
+</body>
+</html>
