@@ -1,4 +1,4 @@
-# Flux ⚡
+# Flux
 
 A high-performance, in-memory crypto exchange matching engine built in TypeScript.
 
@@ -8,6 +8,40 @@ Supports **LIMIT, MARKET, and STOP orders** with price-time priority (PTIP), per
 
 ## Tech Stack
 Node.js · TypeScript · Express v5 · WebSocket (`ws`) · Groq LLM · async-mutex
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Client                                │
+│              HTTP              WebSocket                      │
+└────────────────┬───────────────────┬────────────────────────┘
+                 │                   │
+         ┌───────▼───────┐   ┌───────▼───────┐
+         │  REST Routes  │   │   WS Handler  │
+         │  /orders      │   │  subscribe    │
+         │  /orderbook   │   │  summarize    │
+         └───────┬───────┘   └───────┬───────┘
+                 │                   │
+         ┌───────▼───────────────────▼───────┐
+         │          Matching Engine           │
+         │  ┌─────────────┐  ┌───────────┐  │
+         │  │  OrderBook  │  │  Mutexes  │  │
+         │  │  bids/asks  │  │ per-symbol│  │
+         │  └─────────────┘  └───────────┘  │
+         │  ┌─────────────────────────────┐  │
+         │  │  Stop Order Queue           │  │
+         │  │  (cascade trigger logic)    │  │
+         │  └─────────────────────────────┘  │
+         └───────────────────────────────────┘
+                         │
+                 ┌───────▼───────┐
+                 │  Groq (LLM)   │
+                 │  Summarizer   │
+                 └───────────────┘
+```
 
 ---
 
